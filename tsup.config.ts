@@ -1,18 +1,30 @@
-import { defineConfig } from 'tsup';
+import { defineConfig, type Options } from 'tsup';
+
+const shared: Options = {
+  format: ['esm', 'cjs'],
+  dts: true,
+  sourcemap: true,
+  // Cleaning is done by the build script so parallel configs don't wipe each other's output.
+  clean: false,
+  splitting: false,
+  treeshake: true,
+  outDir: 'dist',
+};
 
 export default defineConfig([
   {
-    entry: { index: 'src/index.ts' },
-    format: ['esm', 'cjs'],
-    dts: true,
-    sourcemap: true,
-    // Cleaning is done by the build script so parallel configs don't wipe each other's output.
-    clean: false,
-    splitting: false,
-    treeshake: true,
-    minify: false,
+    ...shared,
+    // Runs in React Router loaders/actions and in the browser.
+    entry: { index: 'src/index.ts', 'client/index': 'src/client.ts' },
     target: 'es2022',
-    outDir: 'dist',
+  },
+  {
+    ...shared,
+    // Node-only: file system access at build/dev time.
+    entry: { 'codegen/index': 'src/codegen/index.ts', 'vite/index': 'src/vite.ts' },
+    target: 'node20',
+    platform: 'node',
+    removeNodeProtocol: false,
   },
   {
     entry: { cli: 'src/cli/index.ts' },

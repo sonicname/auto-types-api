@@ -1,12 +1,15 @@
 [
   {
-    "name": "auto-types-api (ESM)",
+    "name": "auto-types-api (server helpers)",
     "path": "dist/index.js",
+    "import": "{ api }",
+    "ignore": ["endpoint-kit"],
     "limit": "3 kB"
   },
   {
-    "name": "auto-types-api (CJS)",
-    "path": "dist/index.cjs",
-    "limit": "3 kB"
+    "name": "auto-types-api/client",
+    "path": "dist/client/index.js",
+    "ignore": ["endpoint-kit"],
+    "limit": "300 B"
   }
 ]

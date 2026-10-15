@@ -1,16 +1,19 @@
 {
   "name": "auto-types-api",
   "version": "0.0.0",
-  "description": "Generate TypeScript types from API responses or JSON samples, from code or the command line",
+  "description": "Bridge between modules-page-routing API files and endpoint-kit: declare typed endpoints once, get a typed client generated for you",
   "keywords": [
     "typescript",
-    "types",
     "api",
-    "json",
-    "json-to-ts",
+    "types",
     "codegen",
-    "type-generation",
-    "cli"
+    "react-router",
+    "modules-page-routing",
+    "endpoint-kit",
+    "type-safe",
+    "standard-schema",
+    "zod",
+    "vite-plugin"
   ],
   "homepage": "https://github.com/sonicname/auto-types-api#readme",
   "bugs": {
@@ -35,11 +38,54 @@
         "default": "./dist/index.cjs"
       }
     },
+    "./client": {
+      "import": {
+        "types": "./dist/client/index.d.ts",
+        "default": "./dist/client/index.js"
+      },
+      "require": {
+        "types": "./dist/client/index.d.cts",
+        "default": "./dist/client/index.cjs"
+      }
+    },
+    "./codegen": {
+      "import": {
+        "types": "./dist/codegen/index.d.ts",
+        "default": "./dist/codegen/index.js"
+      },
+      "require": {
+        "types": "./dist/codegen/index.d.cts",
+        "default": "./dist/codegen/index.cjs"
+      }
+    },
+    "./vite": {
+      "import": {
+        "types": "./dist/vite/index.d.ts",
+        "default": "./dist/vite/index.js"
+      },
+      "require": {
+        "types": "./dist/vite/index.d.cts",
+        "default": "./dist/vite/index.cjs"
+      }
+    },
     "./package.json": "./package.json"
   },
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "client": [
+        "./dist/client/index.d.ts"
+      ],
+      "codegen": [
+        "./dist/codegen/index.d.ts"
+      ],
+      "vite": [
+        "./dist/vite/index.d.ts"
+      ]
+    }
+  },
   "bin": {
     "auto-types-api": "./dist/cli.js"
   },
@@ -87,6 +133,15 @@
       "prettier --write"
     ]
   },
+  "peerDependencies": {
+    "endpoint-kit": "^0.2.0",
+    "modules-page-routing": "^0.1.24"
+  },
+  "peerDependenciesMeta": {
+    "modules-page-routing": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
     "@changesets/cli": "^3.0.3",
@@ -96,18 +151,23 @@
     "@size-limit/preset-small-lib": "^14.1.0",
     "@types/node": "^26.6.4",
     "@vitest/coverage-v8": "^5.0.3",
+    "endpoint-kit": "^0.2.0",
     "eslint": "^10.12.0",
     "eslint-config-prettier": "^10.1.8",
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
+    "modules-page-routing": "^0.1.24",
     "prettier": "^3.9.9",
     "publint": "^0.3.25",
+    "react": "^19.3.0",
+    "react-router": "^8.4.0",
     "rimraf": "^6.1.3",
     "size-limit": "^14.1.0",
     "tsup": "^8.5.1",
     "typedoc": "^0.28.20",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.71.1",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.3",
+    "zod": "^4.6.7"
   }
 }

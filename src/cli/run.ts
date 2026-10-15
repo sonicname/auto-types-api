@@ -1,60 +1,90 @@
 import { parseArgs } from 'node:util';
-import { generateTypes } from '../generate';
+import type { GenerateRoutesOptions, GenerateRoutesResult } from '../codegen';
 
-/** Process I/O the CLI depends on, injectable for tests. */
+/** Process I/O and side effects the CLI depends on, injectable for tests. */
 export interface CliIO {
   stdout: (text: string) => void;
   stderr: (text: string) => void;
-  readFile: (path: string) => Promise<string>;
-  writeFile: (path: string, content: string) => Promise<void>;
-  fetch: (url: string) => Promise<{ ok: boolean; status: number; text: () => Promise<string> }>;
+  generate: (options: GenerateRoutesOptions) => Promise<GenerateRoutesResult>;
+  /** Calls `onChange` when anything under `dir` changes; returns a stop function. */
+  watch: (dir: string, onChange: () => void) => () => void;
 }
 
-export const HELP = `Usage: auto-types-api <file|url> [options]
+export const HELP = `Usage: auto-types-api generate [options]
 
-Generate TypeScript types from a JSON file or an API endpoint.
+Scan a modules-page-routing app for API files and generate typed endpoint-kit routes.
 
 Options:
-  -n, --name <name>  Name of the generated type (default: Root)
-  -o, --out <file>   Write to a file instead of stdout
-  -h, --help         Show this help
+  -a, --app <dir>      App directory with api/ and modules/ (default: ./app)
+  -o, --out <file>     Generated file (default: <app>/api.gen.ts)
+  -p, --prefix <path>  URL prefix of the API routes (default: /api)
+  -n, --name <name>    Name of the exported routes object (default: routes)
+  -w, --watch          Regenerate when files change
+  -h, --help           Show this help
 `;
 
-/** Runs the CLI with the given arguments and returns the process exit code. */
+/**
+ * Runs the CLI and resolves with the exit code. In watch mode it resolves once the first
+ * generation is done and keeps watching.
+ */
 export async function run(argv: string[], io: CliIO): Promise<number> {
+  let parsed;
   try {
-    const { values, positionals } = parseArgs({
+    parsed = parseArgs({
       args: argv,
       allowPositionals: true,
       options: {
-        name: { type: 'string', short: 'n' },
+        app: { type: 'string', short: 'a' },
         out: { type: 'string', short: 'o' },
+        prefix: { type: 'string', short: 'p' },
+        name: { type: 'string', short: 'n' },
+        watch: { type: 'boolean', short: 'w' },
         help: { type: 'boolean', short: 'h' },
       },
     });
-
-    const source = positionals[0];
-    if (values.help || source === undefined) {
-      (values.help ? io.stdout : io.stderr)(HELP);
-      return values.help ? 0 : 1;
-    }
-
-    const sample: unknown = JSON.parse(await load(source, io));
-    const output = generateTypes(sample, values.name === undefined ? {} : { name: values.name });
-
-    if (values.out === undefined) io.stdout(output);
-    else await io.writeFile(values.out, output);
-    return 0;
   } catch (error) {
-    io.stderr(`auto-types-api: ${error instanceof Error ? error.message : String(error)}\n`);
+    io.stderr(`auto-types-api: ${(error as Error).message}\n\n${HELP}`);
     return 1;
   }
-}
 
-async function load(source: string, io: CliIO): Promise<string> {
-  if (!/^https?:\/\//.test(source)) return io.readFile(source);
-  const response = await io.fetch(source);
-  if (!response.ok)
-    throw new Error(`Request to ${source} failed with status ${String(response.status)}`);
-  return response.text();
+  const { values, positionals } = parsed;
+  if (values.help) {
+    io.stdout(HELP);
+    return 0;
+  }
+  if (positionals[0] !== 'generate') {
+    io.stderr(HELP);
+    return 1;
+  }
+
+  const options: GenerateRoutesOptions = {};
+  if (values.app !== undefined) options.appDir = values.app;
+  if (values.out !== undefined) options.outFile = values.out;
+  if (values.prefix !== undefined) options.prefix = values.prefix;
+  if (values.name !== undefined) options.routesName = values.name;
+
+  const once = async (): Promise<boolean> => {
+    try {
+      const result = await io.generate(options);
+      for (const warning of result.warnings) io.stderr(`warn: ${warning}\n`);
+      if (result.changed) {
+        io.stdout(`Generated ${String(result.routes.length)} routes → ${result.outFile}\n`);
+      }
+      return true;
+    } catch (error) {
+      io.stderr(`auto-types-api: ${error instanceof Error ? error.message : String(error)}\n`);
+      return false;
+    }
+  };
+
+  const ok = await once();
+  if (!values.watch) return ok ? 0 : 1;
+
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  io.watch(options.appDir ?? 'app', () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => void once(), 50);
+  });
+  io.stdout('Watching for changes...\n');
+  return 0;
 }

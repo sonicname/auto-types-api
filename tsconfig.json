@@ -27,7 +27,12 @@
     "noEmit": true,
     "outDir": "dist",
     "rootDir": ".",
-    "types": ["node"]
+    "types": ["node"],
+    // Lets the test fixture import this package by name, like a real app does.
+    "paths": {
+      "auto-types-api": ["./src/index.ts"],
+      "auto-types-api/client": ["./src/client.ts"]
+    }
   },
   "include": ["src", "tests", "*.config.ts"],
   "exclude": ["node_modules", "dist", "coverage", "docs"]

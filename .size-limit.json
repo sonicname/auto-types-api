@@ -1,0 +1,12 @@
+[
+  {
+    "name": "auto-types-api (ESM)",
+    "path": "dist/index.js",
+    "limit": "3 kB"
+  },
+  {
+    "name": "auto-types-api (CJS)",
+    "path": "dist/index.cjs",
+    "limit": "3 kB"
+  }
+]

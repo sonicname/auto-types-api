@@ -7,7 +7,7 @@ import * as health from './fixtures/app/api/health';
 import * as products from './fixtures/app/modules/shop/api/products';
 import * as productById from './fixtures/app/modules/shop/api/products.$id';
 
-const modules: Record<string, { loader: RouterHandler; action: RouterHandler }> = {
+const modules: Record<string, { loader: RouterHandler }> = {
   getHealth: health,
   getShopProducts: products,
   postShopProducts: products,
@@ -15,14 +15,12 @@ const modules: Record<string, { loader: RouterHandler; action: RouterHandler }> 
   deleteShopProductsById: productById,
 };
 
-/** Stands in for React Router: match the URL, then call the module's loader or action. */
+/** Stands in for React Router: match the URL, then call the module's served handler. */
 const router: typeof fetch = async (input, init) => {
   const request = new Request(input, init);
   const match = matchRoute(routes, request.method, new URL(request.url).pathname);
   if (!match) return new Response(null, { status: 404 });
-  const module = modules[match.name]!;
-  const handler = request.method === 'GET' ? module.loader : module.action;
-  return handler({ request, params: match.params, context: {} });
+  return modules[match.name]!.loader({ request, params: match.params, context: {} });
 };
 
 const client = createRepository({

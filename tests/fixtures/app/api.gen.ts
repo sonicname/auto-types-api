@@ -7,15 +7,15 @@ import type * as api2 from './modules/shop/api/products.$id';
 
 export const routes = {
   /** GET /api/health (api/health.ts) */
-  getHealth: createRoute.get('/api/health', clientOptions<typeof api0.GET>()),
+  getHealth: createRoute.get('/api/health', clientOptions<typeof api0.loader, 'GET'>()),
   /** GET /api/shop/products (modules/shop/api/products.ts) */
-  getShopProducts: createRoute.get('/api/shop/products', clientOptions<typeof api1.GET>()),
+  getShopProducts: createRoute.get('/api/shop/products', clientOptions<typeof api1.loader, 'GET'>()),
   /** POST /api/shop/products (modules/shop/api/products.ts) */
-  postShopProducts: createRoute.post('/api/shop/products', clientOptions<typeof api1.POST>()),
+  postShopProducts: createRoute.post('/api/shop/products', clientOptions<typeof api1.loader, 'POST'>()),
   /** GET /api/shop/products/:id (modules/shop/api/products.$id.ts) */
-  getShopProductsById: createRoute.get('/api/shop/products/:id', clientOptions<typeof api2.GET>()),
+  getShopProductsById: createRoute.get('/api/shop/products/:id', clientOptions<typeof api2.action, 'GET'>()),
   /** DELETE /api/shop/products/:id (modules/shop/api/products.$id.ts) */
-  deleteShopProductsById: createRoute.delete('/api/shop/products/:id', clientOptions<typeof api2.DELETE>()),
+  deleteShopProductsById: createRoute.delete('/api/shop/products/:id', clientOptions<typeof api2.action, 'DELETE'>()),
 };
 
 export type Routes = typeof routes;

@@ -7,30 +7,35 @@ import type {
   ApiEndpoints,
   ApiMethod,
   RouterArgs,
-  RouterHandler,
   ServeOptions,
+  ServedHandler,
 } from './types';
 
 type Target = 'params' | 'query' | 'body' | 'headers';
 
 /**
- * Turns the endpoints of an API file into React Router's `loader` and `action`.
+ * Turns the endpoints of an API file into one handler for React Router's `loader` and `action`.
+ * It dispatches on the request method (`HEAD` uses `GET`); unknown methods get a 405 with an
+ * `Allow` header. The handler's type carries the endpoints for the generated client.
  *
- * `loader` answers `GET` (and `HEAD`); `action` dispatches every other method. Unknown methods
- * get a 405 with an `Allow` header.
+ * Keep the endpoints unexported: React Router strips `loader` / `action` from client bundles,
+ * and anything only they reference goes with them.
  *
  * @example
  * ```ts
- * export const GET = api.get({ response: Product }, ({ params }) => db.find(params.id));
- * export const { loader, action } = api.serve({ GET });
+ * const GET = api.get({ response: Product }, ({ params }) => db.find(params.id));
+ *
+ * export const loader = api.serve({ GET });
+ * export const action = loader;
  * ```
  */
-export function serve(
-  endpoints: ApiEndpoints,
+export function serve<E extends ApiEndpoints>(
+  endpoints: E,
   options: ServeOptions = {},
-): { loader: RouterHandler; action: RouterHandler } {
+): ServedHandler<E> {
   const allowed = (Object.keys(endpoints) as ApiMethod[]).filter((m) => endpoints[m]);
-  const dispatch = (method: string, args: RouterArgs): Promise<Response> => {
+  return (args) => {
+    const method = args.request.method.toUpperCase();
     const endpoint = endpoints[(method === 'HEAD' ? 'GET' : method) as ApiMethod];
     if (!endpoint) {
       return Promise.resolve(
@@ -38,11 +43,6 @@ export function serve(
       );
     }
     return handle(endpoint, args, options);
-  };
-
-  return {
-    loader: (args) => dispatch('GET', args),
-    action: (args) => dispatch(args.request.method.toUpperCase(), args),
   };
 }
 

@@ -17,8 +17,17 @@ export interface RouterArgs {
   context?: unknown;
 }
 
-/** A React Router `loader` / `action` produced by {@link serve}. */
+/** A React Router `loader` / `action`. */
 export type RouterHandler = (args: RouterArgs) => Promise<Response>;
+
+/** The `loader` / `action` produced by `api.serve`, carrying its endpoints' types. */
+export type ServedHandler<E extends ApiEndpoints = ApiEndpoints> = RouterHandler & {
+  /** Phantom field read by `auto-types-api/client`. Never set at runtime. */
+  readonly '~endpoints'?: E;
+};
+
+/** Methods served by a {@link ServedHandler}. */
+export type ServedMethods<H extends ServedHandler> = keyof NonNullable<H['~endpoints']> & ApiMethod;
 
 type MaybePromise<T> = T | Promise<T>;
 

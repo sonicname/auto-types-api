@@ -1,11 +1,17 @@
 import type { ApiMethod } from '../server/types';
 
-/** An API file with its URL and the endpoints it exports. */
-export interface ApiFile {
+/** An API file with its URL and the endpoints it serves. */
+export interface ApiFile extends ServedEndpoints {
   /** Path relative to the app directory, e.g. `modules/shop/api/products.$id.ts`. */
   file: string;
   /** Full URL pattern in endpoint-kit syntax, e.g. `/api/shop/products/:id`. */
   path: string;
+}
+
+/** What an API file serves, found by {@link detectServed}. */
+export interface ServedEndpoints {
+  /** The export holding `api.serve(...)`, read for its types. */
+  handler: 'loader' | 'action';
   methods: ApiMethod[];
 }
 
@@ -35,27 +41,56 @@ export interface CodeResult {
 const METHODS: readonly ApiMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 
 /**
- * Finds the endpoint methods an API file exports: `export const GET = ...`,
- * `export function POST`, or `export { handler as PATCH }`.
+ * Finds what an API file serves: the top-level keys of the object passed to `serve({ ... })`
+ * (`{ GET, POST }` or `{ GET: api.get(...) }`) and the export holding it (`loader` unless
+ * only `export const action = api.serve(...)` exists).
  */
-export function detectMethods(source: string): ApiMethod[] {
+export function detectServed(source: string): ServedEndpoints {
   const found = new Set<string>();
-  const declared =
-    /export\s+(?:const|let|var|(?:async\s+)?function\*?)\s+(GET|POST|PUT|PATCH|DELETE)\b/g;
-  for (const match of source.matchAll(declared)) found.add(match[1] ?? '');
-  for (const [, typeOnly, list = ''] of source.matchAll(/export\s*(type\s*)?\{([^}]*)\}/g)) {
-    if (typeOnly) continue;
-    for (const item of list.split(',')) {
-      if (/^\s*type\s/.test(item)) continue;
-      const name = item
-        .trim()
-        .split(/\s+as\s+/)
-        .pop()
-        ?.trim();
-      if (name) found.add(name);
+  for (const match of source.matchAll(/\bserve\s*\(\s*\{/g)) {
+    for (const key of topLevelKeys(source, match.index + match[0].length)) found.add(key);
+  }
+  const holder = /export\s+const\s+(loader|action)\s*=\s*[\w$.]*\bserve\s*\(/.exec(source);
+  return {
+    handler: holder?.[1] === 'action' ? 'action' : 'loader',
+    methods: METHODS.filter((method) => found.has(method)),
+  };
+}
+
+/** Property names at the top level of the object literal starting at `from` (after its `{`). */
+function topLevelKeys(source: string, from: number): string[] {
+  const keys: string[] = [];
+  let depth = 0;
+  let expectKey = true;
+  for (let i = from; i < source.length; i++) {
+    const char = source.charAt(i);
+    if (char === '"' || char === "'" || char === '`') {
+      i = skipString(source, i);
+      expectKey = false;
+    } else if ('{(['.includes(char)) {
+      depth++;
+    } else if ('})]'.includes(char)) {
+      if (depth === 0) break;
+      depth--;
+    } else if (depth === 0 && char === ',') {
+      expectKey = true;
+    } else if (depth === 0 && expectKey && /[A-Za-z_$]/.test(char)) {
+      const key = /^[\w$]+/.exec(source.slice(i))?.[0] ?? '';
+      keys.push(key);
+      i += key.length - 1;
+      expectKey = false;
     }
   }
-  return METHODS.filter((method) => found.has(method));
+  return keys;
+}
+
+function skipString(source: string, start: number): number {
+  const quote = source.charAt(start);
+  for (let i = start + 1; i < source.length; i++) {
+    if (source.charAt(i) === '\\') i++;
+    else if (source.charAt(i) === quote) return i;
+  }
+  return source.length;
 }
 
 /** `get` + `/api/shop/products/:id` → `getShopProductsById`. */
@@ -92,7 +127,7 @@ export function generateRoutesCode(
   for (const api of files) {
     if (api.methods.length === 0) {
       warnings.push(
-        `${api.file}: no GET/POST/PUT/PATCH/DELETE export found, skipped (declare endpoints with api.get(...) etc.)`,
+        `${api.file}: no api.serve({ GET, POST, ... }) found, skipped (see auto-types-api README)`,
       );
       continue;
     }
@@ -114,7 +149,7 @@ export function generateRoutesCode(
       routes.push({ name, method, path: api.path, file: api.file });
       entries.push(
         `  /** ${method} ${api.path} (${api.file}) */\n` +
-          `  ${name}: createRoute.${method.toLowerCase()}(${quote(api.path)}, clientOptions<typeof ${alias}.${method}>()),`,
+          `  ${name}: createRoute.${method.toLowerCase()}(${quote(api.path)}, clientOptions<typeof ${alias}.${api.handler}, '${method}'>()),`,
       );
     }
   }

@@ -14,7 +14,7 @@ declarations, so the client knows every URL, path param, query, body, header and
 ```text
 app/modules/shop/api/products.$id.ts       app/api.gen.ts (generated)               anywhere
 ──────────────────────────────────────     ─────────────────────────────────────    ───────────────────────────────
-export const GET = api.get(          ───▶  getShopProductsById: createRoute.get(  ───▶ await client.getShopProductsById(
+const GET = api.get(                 ───▶  getShopProductsById: createRoute.get(  ───▶ await client.getShopProductsById(
   { params, response: Product },             '/api/shop/products/:id', ...)              { params: { id: 1 } })
   handler)                                                                             // data: Product
 ```
@@ -35,7 +35,8 @@ pnpm add zod # or any Standard Schema library
 ## 1. Declare endpoints in API files
 
 API files follow modules-page-routing's conventions (`app/api/**` and `app/modules/<module>/api/**`,
-`.ts`, `$param` for params). Export each endpoint under its HTTP method name, then serve them:
+`.ts`, `$param` for params). Declare one endpoint per HTTP method and serve them as the route's
+`loader` and `action`:
 
 ```ts
 // app/modules/shop/api/products.$id.ts  →  /api/shop/products/:id
@@ -45,31 +46,40 @@ import { Product } from '../schemas';
 
 const params = z.object({ id: z.coerce.number<string | number>() });
 
-export const GET = api.get({ params, response: Product }, async ({ params }) => {
+const GET = api.get({ params, response: Product }, async ({ params }) => {
   return (await db.products.find(params.id)) ?? reply(404, { error: 'NotFound' });
 });
 
-export const PATCH = api.patch(
+const PATCH = api.patch(
   { params, body: Product.pick({ name: true, price: true }).partial(), response: Product },
   ({ params, body }) => db.products.update(params.id, body),
 );
 
-export const DELETE = api.delete({ params }, async ({ params }) => {
+const DELETE = api.delete({ params }, async ({ params }) => {
   await db.products.remove(params.id);
   return reply(204);
 });
 
-// React Router resource route exports
-export const { loader, action } = api.serve({ GET, PATCH, DELETE });
+// One handler for every method; React Router calls loader for GET and action for the rest.
+export const loader = api.serve({ GET, PATCH, DELETE });
+export const action = loader;
 ```
 
 ```ts
 // app/api/health.ts  →  /api/health
 import { api } from 'auto-types-api';
 
-export const GET = api.get(() => ({ ok: true, time: Date.now() })); // response type inferred
-export const { loader, action } = api.serve({ GET });
+export const loader = api.serve({
+  GET: api.get(() => ({ ok: true, time: Date.now() })), // response type inferred
+});
 ```
+
+> **Keep endpoints unexported and export `loader` / `action` as plain `const`s.** React Router
+> builds a client module for every route, API routes included, and strips only `loader`,
+> `action` and friends from it; whatever only they reference (handlers, schemas, `.server`
+> imports) is removed with them. An extra `export const GET` would ship your handler code to the
+> browser, and `export const { loader, action } = ...` fails the build ("Cannot remove
+> destructured export").
 
 Wire the routes as usual with modules-page-routing:
 
@@ -107,7 +117,8 @@ String inputs are coerced when the first validation fails (`"12"` → `12`, `"tr
 `z.number()` works for params and query. Invalid input answers `400`, an invalid response `500`,
 an unknown method `405` with `Allow`.
 
-`api.serve(endpoints, { validateResponse?, coerce?, onError? })` returns `{ loader, action }`.
+`api.serve(endpoints, { validateResponse?, coerce?, onError? })` returns one handler for both
+`loader` and `action`. It dispatches on the request method (`HEAD` uses `GET`).
 
 ## 2. Generate the client routes
 
@@ -189,8 +200,10 @@ bundles never include server code or schema libraries. The server validates ever
 
 ## Limitations
 
-- Endpoints must be exported as `GET`, `POST`, `PUT`, `PATCH` or `DELETE` (directly or with
-  `export { x as GET }`). Plain `loader` / `action` exports are skipped with a warning.
+- The generator reads the methods from the object literal passed to `api.serve({ ... })` (shorthand
+  `{ GET }` or inline `{ GET: api.get(...) }`). An object built elsewhere and passed as a variable
+  is not detected; files without `api.serve` are skipped with a warning. The generated file fails
+  to compile if a method does not match what the file serves.
 - Splat routes (`$.ts`) are generated but endpoint-kit cannot fill the `*` segment.
 - Typed error bodies are not carried over to the client yet; errors arrive as endpoint-kit's
   `ApiError` with the response body in `data`.

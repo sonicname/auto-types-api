@@ -17,4 +17,6 @@ export type {
   SchemaReturn,
   SchemaSlot,
   ServeOptions,
+  ServedHandler,
+  ServedMethods,
 } from './server/types';

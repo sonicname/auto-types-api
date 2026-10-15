@@ -16,9 +16,10 @@ async function call(
 ): Promise<{ status: number; headers: Headers; body: unknown }> {
   const { url = 'http://app.test/api/x', params = {}, ...rest } = init;
   const request = new Request(url, rest);
-  const { loader, action } = api.serve(endpoints, options);
-  const handler = ['GET', 'HEAD'].includes(request.method) ? loader : action;
-  const response = await handler({ request, params, context: { user: 'u1' } });
+  const response = await api.serve(
+    endpoints,
+    options,
+  )({ request, params, context: { user: 'u1' } });
   const text = await response.text();
   const isJson = response.headers.get('content-type')?.includes('json') ?? false;
   return {

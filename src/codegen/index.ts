@@ -7,11 +7,11 @@
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { buildApiModuleRouteConfig, buildApiRouteConfig } from 'modules-page-routing';
-import { detectMethods, generateRoutesCode } from './generate';
+import { detectServed, generateRoutesCode } from './generate';
 import type { ApiFile, CodeResult } from './generate';
 
-export { detectMethods, generateRoutesCode, routeName } from './generate';
-export type { ApiFile, CodeOptions, CodeResult, GeneratedRoute } from './generate';
+export { detectServed, generateRoutesCode, routeName } from './generate';
+export type { ApiFile, CodeOptions, CodeResult, GeneratedRoute, ServedEndpoints } from './generate';
 
 /** Options for {@link generateRoutes}. */
 export interface GenerateRoutesOptions {
@@ -88,7 +88,7 @@ export async function generateRoutes(
     resolveApiPaths(await scanApiFiles(appDir), prefix).map(async ({ file, path }) => ({
       file,
       path,
-      methods: detectMethods(await readFile(join(appDir, file), 'utf8')),
+      ...detectServed(await readFile(join(appDir, file), 'utf8')),
     })),
   );
 

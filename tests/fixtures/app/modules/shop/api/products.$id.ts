@@ -4,11 +4,11 @@ import { Product, db } from '../schemas';
 
 const params = z.object({ id: z.coerce.number<string | number>() });
 
-const getProduct = api.get({ params, response: Product }, ({ params }) => {
+const GET = api.get({ params, response: Product }, ({ params }) => {
   return db.find((p) => p.id === params.id) ?? reply(404, { error: 'NotFound' });
 });
 
-export const DELETE = api.delete(
+const DELETE = api.delete(
   { params, headers: z.object({ 'x-admin': z.literal('1') }) },
   ({ params }) => {
     const index = db.findIndex((p) => p.id === params.id);
@@ -18,6 +18,6 @@ export const DELETE = api.delete(
   },
 );
 
-export { getProduct as GET };
-
-export const { loader, action } = api.serve({ GET: getProduct, DELETE });
+// Only an action: GET is still answered because `serve` dispatches on the request method.
+export const action = api.serve({ GET, DELETE });
+export const loader = action;

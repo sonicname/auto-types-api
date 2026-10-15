@@ -1,6 +1,7 @@
 import type { RouteInput, RouteOutput } from 'endpoint-kit';
 import type { ActionFunction, LoaderFunction } from 'react-router';
 import { describe, expectTypeOf, it } from 'vitest';
+import { clientOptions } from '../src/client';
 import type { routes } from './fixtures/app/api.gen';
 import type * as productById from './fixtures/app/modules/shop/api/products.$id';
 import type { Product } from './fixtures/app/modules/shop/schemas';
@@ -45,5 +46,10 @@ describe('server side', () => {
   it('produces a React Router loader and action', () => {
     expectTypeOf<typeof productById.loader>().toExtend<LoaderFunction>();
     expectTypeOf<typeof productById.action>().toExtend<ActionFunction>();
+  });
+
+  it('rejects methods the file does not serve', () => {
+    // @ts-expect-error products.$id.ts serves GET and DELETE only
+    clientOptions<typeof productById.loader, 'PUT'>();
   });
 });

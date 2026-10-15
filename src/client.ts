@@ -8,7 +8,7 @@
  * @packageDocumentation
  */
 import type { AnySchema, StandardSchemaV1 } from 'endpoint-kit';
-import type { ApiEndpoint, EndpointTypes } from './server/types';
+import type { ApiEndpoint, EndpointTypes, ServedHandler, ServedMethods } from './server/types';
 
 /** A schema that only carries a type. */
 export type TypeOnly<T> = StandardSchemaV1<T, T>;
@@ -28,15 +28,23 @@ export type ClientOptions<E extends ApiEndpoint, T extends EndpointTypes = Types
   Slot<'body', T['body']> &
   Slot<'headers', T['headers']> & { response?: TypeOnly<T['response']> };
 
+/** The endpoint a served handler answers `M` with. */
+export type ServedEndpoint<H extends ServedHandler, M extends ServedMethods<H>> = NonNullable<
+  NonNullable<H['~endpoints']>[M]
+>;
+
 /**
- * Route options for `createRoute.<method>(path, options)` typed from an API file's endpoint.
+ * Route options for `createRoute.<method>(path, options)` typed from the endpoint an API file's
+ * `loader` serves for `M`. Fails to compile when the file does not serve `M`.
  *
  * @example
  * ```ts
  * import type * as products from './modules/shop/api/products.$id';
- * createRoute.get('/api/shop/products/:id', clientOptions<typeof products.GET>());
+ * createRoute.get('/api/shop/products/:id', clientOptions<typeof products.loader, 'GET'>());
  * ```
  */
-export function clientOptions<E extends ApiEndpoint>(): ClientOptions<E> {
-  return {} as ClientOptions<E>;
+export function clientOptions<H extends ServedHandler, M extends ServedMethods<H>>(): ClientOptions<
+  ServedEndpoint<H, M>
+> {
+  return {} as ClientOptions<ServedEndpoint<H, M>>;
 }

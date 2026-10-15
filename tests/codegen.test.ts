@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
-  detectMethods,
+  detectServed,
   generateRoutes,
   generateRoutesCode,
   resolveApiPaths,
@@ -14,23 +14,35 @@ import {
 const fixture = fileURLToPath(new URL('./fixtures/app', import.meta.url));
 const generated = fileURLToPath(new URL('./.generated', import.meta.url));
 
-describe('detectMethods', () => {
-  it('finds declared and re-exported methods', () => {
+describe('detectServed', () => {
+  it('reads shorthand keys of serve({ ... })', () => {
     const source = `
-      export const GET = api.get(() => 1);
-      export async function POST() {}
-      export function* PUT() {}
-      const handler = 1;
-      export { handler as PATCH, other };
-      export type { DELETE } from './types';
-      export { type Foo as DELETE };
-      export const { loader, action } = api.serve({ GET });
+      const GET = api.get(() => 1);
+      const DELETE = api.delete(() => 2);
+      export const loader = api.serve({ GET, DELETE }, { coerce: false });
+      export const action = loader;
     `;
-    expect(detectMethods(source)).toEqual(['GET', 'POST', 'PUT', 'PATCH']);
+    expect(detectServed(source)).toEqual({ handler: 'loader', methods: ['GET', 'DELETE'] });
   });
 
-  it('ignores files without endpoints', () => {
-    expect(detectMethods('export function loader() {}')).toEqual([]);
+  it('reads inline keys only at the top level', () => {
+    const source = `
+      import { serve } from 'auto-types-api';
+      export const action = serve({
+        POST: api.post({ body: z.object({ GET: z.string() }) }, ({ body }) => [body, 'PUT, }']),
+        'PATCH': handler,
+        ...shared,
+        PUT: \`a \${'}'} b\`,
+      });
+    `;
+    expect(detectServed(source)).toEqual({ handler: 'action', methods: ['POST', 'PUT'] });
+  });
+
+  it('ignores files without serve()', () => {
+    const source = 'export function loader() { return Response.json({ GET: 1 }) }';
+    expect(detectServed(source)).toEqual({ handler: 'loader', methods: [] });
+    expect(detectServed('serve({ GET').methods).toEqual(['GET']);
+    expect(detectServed("serve({ GET: 'unterminated").methods).toEqual(['GET']);
   });
 });
 
@@ -70,21 +82,24 @@ describe('generateRoutesCode', () => {
   it('dedupes names and warns about skipped files and splats', () => {
     const result = generateRoutesCode(
       [
-        { file: 'api/a.b.ts', path: '/api/a/b', methods: ['GET'] },
-        { file: 'api/a-b.ts', path: '/api/a-b', methods: ['GET'] },
-        { file: 'api/files.$.ts', path: "/api/it's/*", methods: ['GET'] },
-        { file: 'api/util.ts', path: '/api/util', methods: [] },
+        { file: 'api/a.b.ts', path: '/api/a/b', handler: 'loader', methods: ['GET'] },
+        { file: 'api/a-b.ts', path: '/api/a-b', handler: 'action', methods: ['GET'] },
+        { file: 'api/files.$.ts', path: "/api/it's/*", handler: 'loader', methods: ['GET'] },
+        { file: 'api/util.ts', path: '/api/util', handler: 'loader', methods: [] },
       ],
       { importPath, prefix: '/api', routesName: 'api' },
     );
     expect(result.routes.map((r) => r.name)).toEqual(['getAB', 'getAB2', 'getItSAll']);
+    expect(result.code).toContain(
+      "getAB2: createRoute.get('/api/a-b', clientOptions<typeof api1.action, 'GET'>()),",
+    );
     expect(result.code).toContain("getItSAll: createRoute.get('/api/it\\'s/*'");
     expect(result.code).toContain('export const api = {');
     expect(result.code).toContain('export type Api = typeof api;');
     expect(result.warnings).toEqual([
       'api/a-b.ts: route name "getAB" taken, using "getAB2"',
       expect.stringContaining('splat route'),
-      expect.stringContaining('api/util.ts: no GET/POST/PUT/PATCH/DELETE export found'),
+      expect.stringContaining('api/util.ts: no api.serve({ GET, POST, ... }) found'),
     ]);
   });
 });

@@ -1,6 +1,6 @@
 {
   "name": "auto-types-api",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Bridge between modules-page-routing API files and endpoint-kit: declare typed endpoints once, get a typed client generated for you",
   "keywords": [
     "typescript",

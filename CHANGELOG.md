@@ -1,6 +1,6 @@
----
-'auto-types-api': minor
----
+# auto-types-api
+
+## 0.0.1
 
 Initial release.
 

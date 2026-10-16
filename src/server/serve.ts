@@ -6,6 +6,7 @@ import type {
   ApiEndpoint,
   ApiEndpoints,
   ApiMethod,
+  EndpointConfig,
   RouterArgs,
   ServeOptions,
   ServedHandler,
@@ -16,7 +17,7 @@ type Target = 'params' | 'query' | 'body' | 'headers';
 /**
  * Turns the endpoints of an API file into one handler for React Router's `loader` and `action`.
  * It dispatches on the request method (`HEAD` uses `GET`); unknown methods get a 405 with an
- * `Allow` header. The handler's type carries the endpoints for the generated client.
+ * `Allow` header. The handler carries the endpoints for the generated client and OpenAPI.
  *
  * Keep the endpoints unexported: React Router strips `loader` / `action` from client bundles,
  * and anything only they reference goes with them.
@@ -34,7 +35,7 @@ export function serve<E extends ApiEndpoints>(
   options: ServeOptions = {},
 ): ServedHandler<E> {
   const allowed = (Object.keys(endpoints) as ApiMethod[]).filter((m) => endpoints[m]);
-  return (args) => {
+  const handler = (args: RouterArgs): Promise<Response> => {
     const method = args.request.method.toUpperCase();
     const endpoint = endpoints[(method === 'HEAD' ? 'GET' : method) as ApiMethod];
     if (!endpoint) {
@@ -44,6 +45,7 @@ export function serve<E extends ApiEndpoints>(
     }
     return handle(endpoint, args, options);
   };
+  return Object.defineProperty(handler, '~endpoints', { value: endpoints }) as ServedHandler<E>;
 }
 
 async function handle(
@@ -53,8 +55,18 @@ async function handle(
 ): Promise<Response> {
   const { config } = endpoint;
   const coerce = options.coerce !== false;
+  const validateOutput = options.validateResponse !== false;
   try {
-    const ctx: ApiContext = {
+    const extras: Record<string, unknown> = {};
+    for (const middleware of endpoint.middlewares) {
+      const added = await middleware({ ...extras, request, params, context });
+      if (added instanceof Response) return added;
+      if (added instanceof HttpReply) return await replyResponse(added, config, validateOutput);
+      if (typeof added === 'object' && added !== null) Object.assign(extras, added);
+    }
+
+    const ctx = {
+      ...extras,
       params: await validate('params', config.params, params, coerce),
       query: await validate(
         'query',
@@ -68,42 +80,125 @@ async function handle(
         : request.headers,
       request,
       context,
-    };
+      error: (status: number, body: unknown): never => {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error -- caught below
+        throw new HttpReply(status, body);
+      },
+    } as ApiContext;
 
     const result = await endpoint.handler(ctx);
     if (result instanceof Response) return result;
-    if (result instanceof HttpReply) return replyResponse(result);
-
-    let body = result;
-    if (config.response && options.validateResponse !== false) {
-      const outcome = await config.response['~standard'].validate(result);
-      if (outcome.issues) throw new ValidationError('response', outcome.issues, endpoint.method);
-      body = outcome.value;
-    }
-    return body === undefined ? new Response(null, { status: 204 }) : json(200, body);
+    if (result instanceof HttpReply) return await replyResponse(result, config, validateOutput);
+    return await successResponse(result, config, validateOutput);
   } catch (error) {
-    if (error instanceof HttpReply) return replyResponse(error);
-    if (error instanceof ValidationError) {
-      return json(error.target === 'response' ? 500 : 400, {
+    if (error instanceof HttpReply) {
+      try {
+        return await replyResponse(error, config, validateOutput);
+      } catch (invalid) {
+        return errorResponse(invalid, request, options);
+      }
+    }
+    return errorResponse(error, request, options);
+  }
+}
+
+async function successResponse(
+  result: unknown,
+  config: EndpointConfig,
+  validateOutput: boolean,
+): Promise<Response> {
+  const schema = validateOutput ? config.response : undefined;
+  switch (config.responseType) {
+    case 'sse':
+      return sseResponse(result as AsyncIterable<unknown>, schema);
+    case 'text': {
+      const body = await check(schema, result);
+      return new Response(String(body), {
+        headers: { 'content-type': 'text/plain; charset=utf-8' },
+      });
+    }
+    default: {
+      const body = await check(schema, result);
+      return body === undefined ? new Response(null, { status: 204 }) : json(200, body);
+    }
+  }
+}
+
+/** A reply with a declared `errors` status is validated against that status' schema. */
+async function replyResponse(
+  answer: HttpReply,
+  config: EndpointConfig,
+  validateOutput: boolean,
+): Promise<Response> {
+  const { status, headers } = answer;
+  const schema = validateOutput ? config.errors?.[status] : undefined;
+  const body = await check(schema, answer.body);
+  if (body === undefined || body === null) return new Response(null, { status, headers });
+  if (typeof body === 'string') return new Response(body, { status, headers });
+  return json(status, body, headers);
+}
+
+function errorResponse(error: unknown, request: Request, options: ServeOptions): Promise<Response> {
+  if (error instanceof ValidationError) {
+    return Promise.resolve(
+      json(error.target === 'response' ? 500 : 400, {
         error: 'ValidationError',
         target: error.target,
         issues: error.issues,
-      });
-    }
-    if (error instanceof TaggedError) {
-      const { _tag, message, status, data } = error as TaggedError & {
-        status?: unknown;
-        data?: unknown;
-      };
-      return json(typeof status === 'number' ? status : 500, {
+      }),
+    );
+  }
+  if (error instanceof TaggedError) {
+    const { _tag, message, status, data } = error as TaggedError & {
+      status?: unknown;
+      data?: unknown;
+    };
+    return Promise.resolve(
+      json(typeof status === 'number' ? status : 500, {
         error: _tag,
         message,
         ...(data === undefined ? {} : { data }),
-      });
-    }
-    if (options.onError) return options.onError(error, request);
-    return json(500, { error: 'InternalServerError' });
+      }),
+    );
   }
+  if (options.onError) return Promise.resolve(options.onError(error, request));
+  return Promise.resolve(json(500, { error: 'InternalServerError' }));
+}
+
+/** Streams what `events` yields as server-sent events, one JSON `data` line per event. */
+function sseResponse(events: AsyncIterable<unknown>, schema: AnySchema | undefined): Response {
+  const iterator = events[Symbol.asyncIterator]();
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const next = await iterator.next();
+        if (next.done) {
+          controller.close();
+          return;
+        }
+        const data = await check(schema, next.value);
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data ?? null)}\n\n`));
+      } catch (error) {
+        // Abort the stream so the client's iteration fails instead of ending normally.
+        controller.error(error);
+      }
+    },
+    async cancel() {
+      await iterator.return?.();
+    },
+  });
+  return new Response(stream, {
+    headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' },
+  });
+}
+
+/** Validates an outgoing value against `schema`, if any. */
+async function check(schema: AnySchema | undefined, value: unknown): Promise<unknown> {
+  if (!schema) return value;
+  const outcome = await schema['~standard'].validate(value);
+  if (outcome.issues) throw new ValidationError('response', outcome.issues, 'response');
+  return outcome.value;
 }
 
 /**
@@ -149,12 +244,6 @@ async function readBody(request: Request): Promise<unknown> {
   }
   const text = await request.text();
   return text === '' ? undefined : text;
-}
-
-function replyResponse({ status, body, headers }: HttpReply): Response {
-  if (body === undefined || body === null) return new Response(null, { status, headers });
-  if (typeof body === 'string') return new Response(body, { status, headers });
-  return json(status, body, headers);
 }
 
 function json(status: number, body: unknown, headers: Record<string, string> = {}): Response {

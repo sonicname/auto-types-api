@@ -16,7 +16,9 @@ Scan a modules-page-routing app for API files and generate typed endpoint-kit ro
 
 Options:
   -a, --app <dir>      App directory with api/ and modules/ (default: ./app)
-  -o, --out <file>     Generated file (default: <app>/api.gen.ts)
+  -o, --out <file>     Generated client file (default: <app>/api.gen.ts)
+  -s, --server-out <file|false>
+                       Generated server file (default: <app>/api.gen.server.ts)
   -p, --prefix <path>  URL prefix of the API routes (default: /api)
   -n, --name <name>    Name of the exported routes object (default: routes)
   -w, --watch          Regenerate when files change
@@ -36,6 +38,7 @@ export async function run(argv: string[], io: CliIO): Promise<number> {
       options: {
         app: { type: 'string', short: 'a' },
         out: { type: 'string', short: 'o' },
+        'server-out': { type: 'string', short: 's' },
         prefix: { type: 'string', short: 'p' },
         name: { type: 'string', short: 'n' },
         watch: { type: 'boolean', short: 'w' },
@@ -60,6 +63,8 @@ export async function run(argv: string[], io: CliIO): Promise<number> {
   const options: GenerateRoutesOptions = {};
   if (values.app !== undefined) options.appDir = values.app;
   if (values.out !== undefined) options.outFile = values.out;
+  const serverOut = values['server-out'];
+  if (serverOut !== undefined) options.serverOutFile = serverOut === 'false' ? false : serverOut;
   if (values.prefix !== undefined) options.prefix = values.prefix;
   if (values.name !== undefined) options.routesName = values.name;
 

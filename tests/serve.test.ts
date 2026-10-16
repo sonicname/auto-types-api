@@ -1,7 +1,7 @@
 import { TaggedError } from 'endpoint-kit';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { HttpReply, api, reply } from '../src';
+import { HttpReply, api, createApi, reply } from '../src';
 import type { ApiEndpoints, ServeOptions } from '../src';
 
 interface CallInit extends RequestInit {
@@ -149,7 +149,6 @@ describe('api.serve', () => {
 
     const thrown = api.get(() => {
       // endpoint-kit documents throwing a reply to short-circuit a handler.
-      // eslint-disable-next-line @typescript-eslint/only-throw-error
       throw new HttpReply(404);
     });
     expect((await call({ GET: thrown })).status).toBe(404);
@@ -189,5 +188,131 @@ describe('api.serve', () => {
   it('requires a handler', () => {
     const put = api.put as (config: object) => unknown;
     expect(() => put({})).toThrow('api.put(): missing handler');
+  });
+
+  it('exposes the served endpoints', () => {
+    const GET = api.get(() => 1);
+    expect(api.serve({ GET })['~endpoints']).toEqual({ GET });
+  });
+});
+
+describe('middlewares', () => {
+  it('run in order before validation and add fields to ctx', async () => {
+    const seen: string[] = [];
+    const withUser = createApi()
+      .use(({ request }) => {
+        seen.push('user');
+        return { user: request.headers.get('x-user') ?? 'anon' };
+      })
+      .use(({ user }) => {
+        seen.push('noop');
+        expect(user).toBe('ann');
+      })
+      .use(({ user }) => ({ isAnn: user === 'ann' }));
+    const GET = withUser.get({ query: z.object({ n: z.number() }) }, ({ user, isAnn, query }) => ({
+      user,
+      isAnn,
+      n: query.n,
+    }));
+    const res = await call({ GET }, { url: 'http://app.test/x?n=1', headers: { 'x-user': 'ann' } });
+    expect(res.body).toEqual({ user: 'ann', isAnn: true, n: 1 });
+    expect(seen).toEqual(['user', 'noop']);
+  });
+
+  it('can stop the request by throwing a reply', async () => {
+    const guarded = api.use(() => {
+      throw reply(401, { message: 'Sign in' });
+    });
+    const GET = guarded.get(() => 'never');
+    expect(await call({ GET })).toMatchObject({ status: 401, body: { message: 'Sign in' } });
+    // The base api is unaffected.
+    expect((await call({ GET: api.get(() => 'ok') })).body).toBe('ok');
+
+    const teapot = api.use(() => new Response('short', { status: 418 })).get(() => 'never');
+    expect(await call({ GET: teapot })).toMatchObject({ status: 418, body: 'short' });
+    const returned = api.use(() => reply(402)).get(() => 'never');
+    expect((await call({ GET: returned })).status).toBe(402);
+  });
+});
+
+describe('declared errors', () => {
+  const Problem = z.object({ message: z.string() });
+
+  it('sends ctx.error and replies with a declared status after validating the body', async () => {
+    const GET = api.get({ errors: { 404: Problem } }, ({ error }) =>
+      error(404, { message: 'gone' }),
+    );
+    expect(await call({ GET })).toMatchObject({ status: 404, body: { message: 'gone' } });
+
+    const bad = api.get({ errors: { 404: Problem } }, () => reply(404, { nope: true }));
+    expect(await call({ GET: bad })).toMatchObject({ status: 500, body: { target: 'response' } });
+    expect(await call({ GET: bad }, {}, { validateResponse: false })).toMatchObject({
+      status: 404,
+      body: { nope: true },
+    });
+
+    const thrown = api.get({ errors: { 404: Problem } }, ({ error }) =>
+      error(404, { wrong: 1 } as unknown as { message: string }),
+    );
+    expect(await call({ GET: thrown })).toMatchObject({
+      status: 500,
+      body: { target: 'response' },
+    });
+  });
+});
+
+describe('response types', () => {
+  it('sends text', async () => {
+    const GET = api.get({ responseType: 'text' }, () => 'plain');
+    const res = await call({ GET });
+    expect(res).toMatchObject({ status: 200, body: 'plain' });
+    expect(res.headers.get('content-type')).toContain('text/plain');
+
+    const checked = api.get({ responseType: 'text', response: z.string().max(2) }, () => 'long');
+    expect((await call({ GET: checked })).status).toBe(500);
+  });
+
+  it('streams server-sent events and aborts the stream on invalid events', async () => {
+    const GET = api.get({ response: z.number(), responseType: 'sse' }, async function* () {
+      yield 1;
+      yield undefined as unknown as number;
+      yield 'x' as unknown as number;
+    });
+    const response = await api.serve({ GET })({
+      request: new Request('http://app.test/x'),
+      params: {},
+    });
+    expect(response.headers.get('content-type')).toBe('text/event-stream');
+    const reader = response.body!.getReader();
+    const first = new TextDecoder().decode((await reader.read()).value);
+    expect(first).toBe('data: 1\n\n');
+    await expect(reader.read()).rejects.toThrow('Validation failed');
+  });
+
+  it('sends null for undefined events and stops the generator when cancelled', async () => {
+    let finished = false;
+    const GET = api.get({ responseType: 'sse' }, async function* () {
+      try {
+        yield undefined;
+        yield 2;
+      } finally {
+        finished = true;
+      }
+    });
+    const response = await api.serve({ GET })({
+      request: new Request('http://app.test/x'),
+      params: {},
+    });
+    const reader = response.body!.getReader();
+    expect(new TextDecoder().decode((await reader.read()).value)).toBe('data: null\n\n');
+    await reader.cancel();
+    expect(finished).toBe(true);
+
+    const done = api.get({ responseType: 'sse' }, async function* () {});
+    const empty = await api.serve({ GET: done })({
+      request: new Request('http://app.test/x'),
+      params: {},
+    });
+    expect(await empty.text()).toBe('');
   });
 });

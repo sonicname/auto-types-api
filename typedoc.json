@@ -1,6 +1,12 @@
 {
   "$schema": "https://typedoc.org/schema.json",
-  "entryPoints": ["src/index.ts", "src/client.ts", "src/codegen/index.ts", "src/vite.ts"],
+  "entryPoints": [
+    "src/index.ts",
+    "src/client.ts",
+    "src/codegen/index.ts",
+    "src/vite.ts",
+    "src/openapi.ts"
+  ],
   "out": "docs",
   "excludePrivate": true,
   "excludeInternal": true,

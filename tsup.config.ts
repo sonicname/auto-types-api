@@ -15,7 +15,11 @@ export default defineConfig([
   {
     ...shared,
     // Runs in React Router loaders/actions and in the browser.
-    entry: { index: 'src/index.ts', 'client/index': 'src/client.ts' },
+    entry: {
+      index: 'src/index.ts',
+      'client/index': 'src/client.ts',
+      'openapi/index': 'src/openapi.ts',
+    },
     target: 'es2022',
   },
   {

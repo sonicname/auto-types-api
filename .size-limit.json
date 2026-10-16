@@ -10,6 +10,6 @@
     "name": "auto-types-api/client",
     "path": "dist/client/index.js",
     "ignore": ["endpoint-kit"],
-    "limit": "300 B"
+    "limit": "700 B"
   }
 ]

@@ -8,8 +8,8 @@ const code = await run(process.argv.slice(2), {
   generate: generateRoutes,
   watch: (dir, onChange) => {
     const watcher = watch(dir, { recursive: true }, (_event, file) => {
-      // The generated file usually lives in the app directory too.
-      if (file && !file.endsWith('.gen.ts')) onChange();
+      // The generated files usually live in the app directory too.
+      if (file && !/\.gen(\.server)?\.ts$/.test(file)) onChange();
     });
     return () => {
       watcher.close();

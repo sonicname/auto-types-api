@@ -2,20 +2,29 @@
 import { createRoute } from 'endpoint-kit';
 import { clientOptions } from 'auto-types-api/client';
 import type * as api0 from './api/health';
-import type * as api1 from './modules/shop/api/products';
-import type * as api2 from './modules/shop/api/products.$id';
+import type * as api1 from './api/version';
+import type * as api2 from './modules/shop/api/events';
+import type * as api3 from './modules/shop/api/products';
+import type * as api4 from './modules/shop/api/upload';
+import type * as api5 from './modules/shop/api/products.$id';
 
 export const routes = {
   /** GET /api/health (api/health.ts) */
   getHealth: createRoute.get('/api/health', clientOptions<typeof api0.loader, 'GET'>()),
+  /** GET /api/version (api/version.ts) */
+  getVersion: createRoute.get('/api/version', clientOptions<typeof api1.loader, 'GET'>({ responseType: 'text' })),
+  /** GET /api/shop/events (modules/shop/api/events.ts) */
+  getShopEvents: createRoute.get('/api/shop/events', clientOptions<typeof api2.loader, 'GET'>({ responseType: 'sse' })),
   /** GET /api/shop/products (modules/shop/api/products.ts) */
-  getShopProducts: createRoute.get('/api/shop/products', clientOptions<typeof api1.loader, 'GET'>()),
+  getShopProducts: createRoute.get('/api/shop/products', clientOptions<typeof api3.loader, 'GET'>()),
   /** POST /api/shop/products (modules/shop/api/products.ts) */
-  postShopProducts: createRoute.post('/api/shop/products', clientOptions<typeof api1.loader, 'POST'>()),
+  postShopProducts: createRoute.post('/api/shop/products', clientOptions<typeof api3.loader, 'POST'>({ errors: [409] })),
+  /** POST /api/shop/upload (modules/shop/api/upload.ts) */
+  postShopUpload: createRoute.post('/api/shop/upload', clientOptions<typeof api4.action, 'POST'>({ bodyType: 'multipart' })),
   /** GET /api/shop/products/:id (modules/shop/api/products.$id.ts) */
-  getShopProductsById: createRoute.get('/api/shop/products/:id', clientOptions<typeof api2.action, 'GET'>()),
+  getShopProductsById: createRoute.get('/api/shop/products/:id', clientOptions<typeof api5.action, 'GET'>({ errors: [404] })),
   /** DELETE /api/shop/products/:id (modules/shop/api/products.$id.ts) */
-  deleteShopProductsById: createRoute.delete('/api/shop/products/:id', clientOptions<typeof api2.action, 'DELETE'>()),
+  deleteShopProductsById: createRoute.delete('/api/shop/products/:id', clientOptions<typeof api5.action, 'DELETE'>()),
 };
 
 export type Routes = typeof routes;

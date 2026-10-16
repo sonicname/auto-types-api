@@ -55,6 +55,16 @@ describe('cli', () => {
     expect(out.join('')).toBe('Generated 1 routes → /app/api.gen.ts\n');
   });
 
+  it('passes the server file option, or disables it', async () => {
+    const custom = createIO();
+    await run(['generate', '--server-out', 'app/api.server.ts'], custom.io);
+    expect(custom.io.generate).toHaveBeenCalledWith({ serverOutFile: 'app/api.server.ts' });
+
+    const disabled = createIO();
+    await run(['generate', '-s', 'false'], disabled.io);
+    expect(disabled.io.generate).toHaveBeenCalledWith({ serverOutFile: false });
+  });
+
   it('stays quiet when nothing changed', async () => {
     const { io, out } = createIO({
       generate: () => Promise.resolve({ ...result, warnings: [], changed: false }),

@@ -6,3 +6,4 @@ pnpm-lock.yaml
 CHANGELOG.md
 tests/.generated
 **/*.gen.ts
+**/*.gen.server.ts

@@ -1,6 +1,6 @@
 /**
- * Vite plugin: regenerates the endpoint-kit routes file on startup and whenever an API file
- * changes in dev.
+ * Vite plugin: regenerates the endpoint-kit routes files (`api.gen.ts`, `api.gen.server.ts`)
+ * on startup and whenever an API file changes in dev.
  *
  * ```ts
  * // vite.config.ts
@@ -15,6 +15,7 @@
 import { relative, resolve, sep } from 'node:path';
 import { generateRoutes } from './codegen';
 import type { GenerateRoutesOptions } from './codegen';
+import { isApiFile } from './paths';
 
 /** The part of Vite's dev server this plugin uses. */
 export interface ViteDevServerLike {
@@ -36,12 +37,10 @@ export type AutoTypesApiOptions = Omit<GenerateRoutesOptions, 'cwd'>;
 /** Generates typed endpoint-kit routes from modules-page-routing API files. */
 export function autoTypesApi(options: AutoTypesApiOptions = {}): VitePluginLike {
   let root = process.cwd();
-  const isApiFile = (file: string): boolean => {
-    const rel = relative(resolve(root, options.appDir ?? 'app'), file)
+  const inApp = (file: string): string =>
+    relative(resolve(root, options.appDir ?? 'app'), file)
       .split(sep)
       .join('/');
-    return rel.endsWith('.ts') && (rel.startsWith('api/') || /^modules\/[^/]+\/api\//.test(rel));
-  };
   const run = async (warn: (message: string) => void): Promise<void> => {
     const result = await generateRoutes({ ...options, cwd: root });
     for (const warning of result.warnings) warn(`[auto-types-api] ${warning}`);
@@ -59,7 +58,7 @@ export function autoTypesApi(options: AutoTypesApiOptions = {}): VitePluginLike 
     },
     configureServer(server) {
       const onFile = (file: string): void => {
-        if (!isApiFile(file)) return;
+        if (!isApiFile(inApp(file))) return;
         run((message) => {
           server.config.logger.warn(message);
         }).catch((error: unknown) => {

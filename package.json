@@ -13,7 +13,9 @@
     "type-safe",
     "standard-schema",
     "zod",
-    "vite-plugin"
+    "vite-plugin",
+    "openapi",
+    "ssr"
   ],
   "homepage": "https://github.com/sonicname/auto-types-api#readme",
   "bugs": {
@@ -68,6 +70,16 @@
         "default": "./dist/vite/index.cjs"
       }
     },
+    "./openapi": {
+      "import": {
+        "types": "./dist/openapi/index.d.ts",
+        "default": "./dist/openapi/index.js"
+      },
+      "require": {
+        "types": "./dist/openapi/index.d.cts",
+        "default": "./dist/openapi/index.cjs"
+      }
+    },
     "./package.json": "./package.json"
   },
   "main": "./dist/index.cjs",
@@ -83,6 +95,9 @@
       ],
       "vite": [
         "./dist/vite/index.d.ts"
+      ],
+      "openapi": [
+        "./dist/openapi/index.d.ts"
       ]
     }
   },

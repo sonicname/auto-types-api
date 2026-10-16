@@ -24,12 +24,22 @@ export default tseslint.config(
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
       '@typescript-eslint/explicit-module-boundary-types': 'error',
+      // `Record<never, never>` is used on purpose as "no fields" in conditional types.
+      '@typescript-eslint/no-generated-empty-object-type': 'off',
     },
   },
   {
     files: ['tests/**/*.ts'],
     rules: {
       '@typescript-eslint/no-non-null-assertion': 'off',
+      // Async generators without await stand in for real event sources.
+      '@typescript-eslint/require-await': 'off',
+      '@typescript-eslint/no-empty-function': 'off',
+      // `expect.any()` / `expect.stringContaining()` are typed `any`.
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      // Tests cover throwing `reply()`, which endpoint-kit documents.
+      '@typescript-eslint/only-throw-error': 'off',
     },
   },
   eslintConfigPrettier,

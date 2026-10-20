@@ -10,6 +10,7 @@ import {
   routeName,
   scanApiFiles,
 } from '../src/codegen';
+import { joinApiPath } from '../src/paths';
 
 const fixture = fileURLToPath(new URL('./fixtures/app', import.meta.url));
 const generated = fileURLToPath(new URL('./.generated', import.meta.url));
@@ -96,6 +97,14 @@ describe('routeName', () => {
     expect(routeName('POST', '/api/user-profile/:org_id', '/api')).toBe('postUserProfileByOrgId');
     expect(routeName('GET', '/api/docs/*', '/api')).toBe('getDocsAll');
     expect(routeName('DELETE', '/v1/x')).toBe('deleteV1X');
+    expect(routeName('GET', '/api', '/api')).toBe('getRoot');
+  });
+
+  it('joins the prefix with index routes without a trailing slash', () => {
+    expect(joinApiPath('/api', '')).toBe('/api');
+    expect(joinApiPath('/api', undefined)).toBe('/api');
+    expect(joinApiPath('', '')).toBe('/');
+    expect(joinApiPath('/api', 'todos')).toBe('/api/todos');
   });
 });
 

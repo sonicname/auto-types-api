@@ -66,4 +66,48 @@ describe('autoTypesApi', () => {
       expect(warn).toHaveBeenCalledWith('[auto-types-api] Error: boom');
     });
   });
+
+  it('regenerates in hotUpdate before Vite reloads, one generation at a time', async () => {
+    let finish: () => void = () => undefined;
+    generateRoutes.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = () => {
+            resolve({ warnings: [] });
+          };
+        }),
+    );
+    const plugin = autoTypesApi();
+    plugin.configResolved({ root });
+    const { server, warn } = createServer();
+    plugin.configureServer(server);
+
+    let done = false;
+    const first = plugin.hotUpdate({ file: join(root, 'app', 'api', 'gone.ts') }).then(() => {
+      done = true;
+    });
+    const second = plugin.hotUpdate({ file: join(root, 'app', 'api', 'gone.ts') });
+    await plugin.hotUpdate({ file: join(root, 'app', 'root.tsx') });
+    expect(generateRoutes).toHaveBeenCalledTimes(1);
+    expect(done).toBe(false);
+
+    finish();
+    await Promise.all([first, second]);
+    expect(done).toBe(true);
+    expect(generateRoutes).toHaveBeenCalledTimes(2);
+    expect(warn).toHaveBeenCalledWith('[auto-types-api] api/x.ts: skipped');
+  });
+
+  it('logs hotUpdate errors without failing the update', async () => {
+    generateRoutes.mockImplementationOnce(() => Promise.reject(new Error('bad file')));
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const plugin = autoTypesApi();
+    plugin.configResolved({ root });
+
+    await expect(
+      plugin.hotUpdate({ file: join(root, 'app', 'api', 'a.ts') }),
+    ).resolves.toBeUndefined();
+    expect(consoleWarn).toHaveBeenCalledWith('[auto-types-api] Error: bad file');
+    consoleWarn.mockRestore();
+  });
 });

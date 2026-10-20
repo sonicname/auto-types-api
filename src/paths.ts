@@ -18,8 +18,14 @@ export function resolveApiPaths(
   const base = `/${prefix.replace(/^\/+|\/+$/g, '')}`.replace(/^\/$/, '');
   return [...buildApiRouteConfig(glob), ...buildApiModuleRouteConfig(glob)].map((node) => ({
     file: node.file,
-    path: `${base}/${node.path ?? ''}`,
+    path: joinApiPath(base, node.path),
   }));
+}
+
+/** Joins the prefix and a builder path; an empty path (`api/index.ts`) is the prefix itself. */
+export function joinApiPath(base: string, path: string | undefined): string {
+  if (!path) return base || '/';
+  return `${base}/${path}`;
 }
 
 /** `get` + `/api/shop/products/:id` → `getShopProductsById`. */
@@ -34,7 +40,8 @@ export function routeName(method: string, path: string, prefix = ''): string {
       return segment.split(/[^A-Za-z0-9]+/);
     })
     .filter(Boolean);
-  return [method.toLowerCase(), ...words.map(capitalize)].join('');
+  // The prefix itself (`api/index.ts` → `/api`) has no words of its own.
+  return [method.toLowerCase(), ...(words.length ? words : ['root']).map(capitalize)].join('');
 }
 
 export function capitalize(word: string): string {

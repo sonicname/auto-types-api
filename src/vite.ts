@@ -29,21 +29,47 @@ export interface VitePluginLike {
   configResolved(config: { root: string }): void;
   buildStart(this: { warn(message: string): void }): Promise<void>;
   configureServer(server: ViteDevServerLike): void;
+  /** Vite 6+: runs before Vite reloads, so the generated files never import a deleted file. */
+  hotUpdate(options: { file: string }): Promise<void>;
 }
 
 /** Options for {@link autoTypesApi}. Paths are relative to Vite's `root`. */
 export type AutoTypesApiOptions = Omit<GenerateRoutesOptions, 'cwd'>;
 
+type Warn = (message: string) => void;
+
 /** Generates typed endpoint-kit routes from modules-page-routing API files. */
 export function autoTypesApi(options: AutoTypesApiOptions = {}): VitePluginLike {
   let root = process.cwd();
-  const inApp = (file: string): string =>
-    relative(resolve(root, options.appDir ?? 'app'), file)
-      .split(sep)
-      .join('/');
-  const run = async (warn: (message: string) => void): Promise<void> => {
-    const result = await generateRoutes({ ...options, cwd: root });
-    for (const warning of result.warnings) warn(`[auto-types-api] ${warning}`);
+  let logger: Warn = (message) => {
+    console.warn(message);
+  };
+  // Generations run one at a time; a second one for the same change finds nothing to write.
+  let queue: Promise<unknown> = Promise.resolve();
+
+  const touchesApi = (file: string): boolean =>
+    isApiFile(
+      relative(resolve(root, options.appDir ?? 'app'), file)
+        .split(sep)
+        .join('/'),
+    );
+
+  const generate = (warn: Warn): Promise<void> => {
+    const next = queue.then(async () => {
+      const result = await generateRoutes({ ...options, cwd: root });
+      for (const warning of result.warnings) warn(`[auto-types-api] ${warning}`);
+    });
+    queue = next.catch(() => undefined);
+    return next;
+  };
+
+  const regenerate = async (file: string): Promise<void> => {
+    if (!touchesApi(file)) return;
+    try {
+      await generate(logger);
+    } catch (error) {
+      logger(`[auto-types-api] ${String(error)}`);
+    }
   };
 
   return {
@@ -52,22 +78,24 @@ export function autoTypesApi(options: AutoTypesApiOptions = {}): VitePluginLike 
       root = config.root;
     },
     async buildStart() {
-      await run((message) => {
+      await generate((message) => {
         this.warn(message);
       });
     },
     configureServer(server) {
+      logger = (message) => {
+        server.config.logger.warn(message);
+      };
+      // Vite 5 has no `hotUpdate` for added and deleted files; on Vite 6+ this is a no-op rerun.
       const onFile = (file: string): void => {
-        if (!isApiFile(inApp(file))) return;
-        run((message) => {
-          server.config.logger.warn(message);
-        }).catch((error: unknown) => {
-          server.config.logger.warn(`[auto-types-api] ${String(error)}`);
-        });
+        void regenerate(file);
       };
       server.watcher.on('add', onFile);
       server.watcher.on('change', onFile);
       server.watcher.on('unlink', onFile);
+    },
+    async hotUpdate({ file }) {
+      await regenerate(file);
     },
   };
 }

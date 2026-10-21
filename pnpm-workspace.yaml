@@ -2,5 +2,5 @@ allowBuilds:
   esbuild: true
 autoInstallPeers: true
 minimumReleaseAgeExclude:
-  - endpoint-kit@0.2.0
+  - endpoint-kit@0.2.0 || 0.3.0
 strictPeerDependencies: false

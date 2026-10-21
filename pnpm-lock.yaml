@@ -191,8 +191,8 @@ importers:
         specifier: ^5.0.3
         version: 5.0.4(vitest@5.0.4)
       endpoint-kit:
-        specifier: ^0.2.0
-        version: 0.2.0
+        specifier: ^0.3.0
+        version: 0.3.0
       eslint:
         specifier: ^10.12.0
         version: 10.12.0(jiti@2.6.1)(supports-color@7.2.0)
@@ -206,8 +206,8 @@ importers:
         specifier: ^17.6.0
         version: 17.6.0
       modules-page-routing:
-        specifier: ^0.1.24
-        version: 0.1.24(react-router@8.4.0(react@19.3.0))(react@19.3.0)
+        specifier: ^0.2.0
+        version: 0.2.0(react-router@8.4.0(react@19.3.0))(react@19.3.0)
       prettier:
         specifier: ^3.9.9
         version: 3.9.10
@@ -1327,8 +1327,8 @@ packages:
   emojilib@2.4.0:
     resolution: {integrity: sha512-5U0rVMU5Y2n2+ykNLQqMoqklN9ICBT/KsvC1Gz6vqHbz2AXXGkG+Pm5rMWk/8Vjrr/mY9985Hi8DYzn1F09Nyw==}
 
-  endpoint-kit@0.2.0:
-    resolution: {integrity: sha512-qli9+1ZSaKCTg06+H/BgijWOcMcLRYCKheRvVDtTM7awfWrctda+tU84z+oxj6q63hmih2vFvqXnwZ6xTsZgGA==}
+  endpoint-kit@0.3.0:
+    resolution: {integrity: sha512-2Hy2m+m/NVqj6ohrrZkvfDiCZHs7ScsArpOMvE4Kf9+/rC4i5Iw1EnazAZyANHUJbgi+XAy3dpoOtYb2bV9f8A==}
     engines: {node: '>=18'}
     hasBin: true
     peerDependencies:
@@ -1759,8 +1759,9 @@ packages:
   mlly@1.8.2:
     resolution: {integrity: sha512-d+ObxMQFmbt10sretNDytwt85VrbkhhUA/JBGm1MPaWJ65Cl4wOgLaB1NYvJSZ0Ef03MMEU/0xpPMXUIQ29UfA==}
 
-  modules-page-routing@0.1.24:
-    resolution: {integrity: sha512-zCEwCPl4L94nINtAfCslXyBxklaD5ttJN8VYkyxUpMOM6hS8aVV2jDvtCxlb3l+H48qWYIxqmSErknDialfw6w==}
+  modules-page-routing@0.2.0:
+    resolution: {integrity: sha512-1Jfl9Mg7M+HrPShnWh81Q57/vJd0A7LiIiHpgFQ/xsI5hMhig7UyUzy+zEjOmkZieSz4mW5oSk0Bp4NSPs0x8g==}
+    engines: {node: '>=20'}
     hasBin: true
     peerDependencies:
       react: ^18.3.1 || ^19.0.0
@@ -3269,7 +3270,7 @@ snapshots:
 
   emojilib@2.4.0: {}
 
-  endpoint-kit@0.2.0: {}
+  endpoint-kit@0.3.0: {}
 
   entities@4.5.0: {}
 
@@ -3671,7 +3672,7 @@ snapshots:
       pkg-types: 1.3.1
       ufo: 1.6.4
 
-  modules-page-routing@0.1.24(react-router@8.4.0(react@19.3.0))(react@19.3.0):
+  modules-page-routing@0.2.0(react-router@8.4.0(react@19.3.0))(react@19.3.0):
     dependencies:
       react: 19.3.0
       react-router: 8.4.0(react@19.3.0)

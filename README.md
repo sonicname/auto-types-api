@@ -122,8 +122,10 @@ String inputs are coerced when the first validation fails (`"12"` → `12`, `"tr
 `z.number()` works for params and query. Invalid input answers `400`, an invalid response `500`,
 an unknown method `405` with `Allow`.
 
-`api.serve(endpoints, { validateResponse?, coerce?, onError? })` returns one handler for both
-`loader` and `action`, dispatching on the request method (`HEAD` uses `GET`).
+`api.serve(endpoints, options?)` returns one handler for both `loader` and `action`, dispatching on
+the request method (`HEAD` uses `GET`). Validation, body parsing and error mapping are
+endpoint-kit's own (`handleRoute` from `endpoint-kit/server`), and `options` are its server
+options: `validateResponse`, `coerce`, `errorStatus` and `onError(error, { route, request })`.
 
 ### Typed params and context
 

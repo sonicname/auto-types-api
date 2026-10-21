@@ -1,5 +1,5 @@
 import type { AnySchema, StandardSchemaV1 } from 'endpoint-kit';
-import type { HttpReply } from 'endpoint-kit/server';
+import type { HttpReply, ServerOptions } from 'endpoint-kit/server';
 
 /** HTTP methods an API file can serve. */
 export type ApiMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -227,21 +227,16 @@ export type ServedHandler<E extends ApiEndpoints = ApiEndpoints> = RouterHandler
 /** Methods served by a {@link ServedHandler}. */
 export type ServedMethods<H extends ServedHandler> = keyof H['~endpoints'] & ApiMethod;
 
-/** Options for `api.serve`. */
-export interface ServeOptions {
+/**
+ * Options for `api.serve`: endpoint-kit's server options (`coerce`, `errorStatus`, `onError`)
+ * without the routing ones, which React Router takes care of.
+ */
+export interface ServeOptions extends Pick<ServerOptions, 'coerce' | 'errorStatus' | 'onError'> {
   /**
    * Validate handler return values against the `response` schema and declared error bodies
    * against their `errors` schema. Defaults to `true`.
    */
   validateResponse?: boolean;
-  /**
-   * Retry validation with `"12"` → `12` and `"true"` → `true` when the first pass fails, so
-   * schemas shared with clients (`z.number()`) accept string params and query values.
-   * Defaults to `true`.
-   */
-  coerce?: boolean;
-  /** Turn an unexpected error into a response. Defaults to a 500 `{ error: 'InternalServerError' }`. */
-  onError?: (error: unknown, request: Request) => Response | Promise<Response>;
 }
 
 /** Declares endpoints; `createApi()` / `api.use()` return one. */
